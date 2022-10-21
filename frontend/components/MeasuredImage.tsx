@@ -1,4 +1,12 @@
-import { memo, useContext, useEffect, useState } from "react";
+import {
+  memo,
+  MouseEventHandler,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
 import { calculateArea, calculateDistance } from "@coszio/react-measurements";
 import { calculateRealImageSize, getObjectFitSize } from "../utils";
@@ -6,7 +14,9 @@ import { AppContext } from "./App";
 import FiberLayer from "./FiberLayer";
 import ScaleLayer from "./ScaleLayer";
 import { runAsync } from "../worker/py-worker";
-import { randomColor } from 'randomcolor';
+import { randomColor } from "randomcolor";
+import InferencePointer from "./InferencePointer";
+import { toast } from "react-toastify";
 
 const initialScale = () => {
   return {
@@ -26,20 +36,22 @@ const MeasuredImage = (props: Props) => {
     fibers,
     setFibers,
     addFiber,
-    appState: { realDims, magnitude, scaleLength, isChoosingTarget, imagePath },
+    appState: {
+      realDims,
+      htmlImageDims,
+      magnitude,
+      scaleLength,
+      isChoosingTarget,
+      imagePath,
+      pendingInferences,
+    },
     setAppState,
   } = useContext(AppContext)!;
 
-  const [state, setState] = useState({
-    loaded: false,
-  });
-  const [scaleMeasurement, setScaleMeasurement] = useState(initialScale());
+  const [isLoaded, setIsLoaded] = useState(false);
 
-  const [image, setImage] = useState(new Image());
-
-  // image dimensions in pixels
-  const [imageDims, setImageDims] = useState(getObjectFitSize(true, image));
-
+  const [scaleMeasurement, setScaleMeasurement] = useState(initialScale());let image = useRef(new Image());
+  
   const onLayerChange = (fiberKey: number, measurements: any) => {
     setFibers((prevFibers) => {
       prevFibers[fiberKey].measurements = measurements;
@@ -57,50 +69,112 @@ const MeasuredImage = (props: Props) => {
       10 +
     ` ${magnitude}²`;
 
-  const onImageLoaded = () => setState({ ...state, loaded: true });
-
+    useEffect(() => {
+      setIsLoaded(false);
+    }, [imagePath])
+    
+  const onImageLoaded = () => setIsLoaded(true);
+  
   // update size of measurement layers
+  const onImageBoundsChanged = useCallback(() =>
+    setAppState((prevAppState) => ({
+      ...prevAppState,
+      htmlImageDims: getObjectFitSize(true, image.current),
+    })), [setAppState]);
+  
+  window.addEventListener("resize", onImageBoundsChanged);
+  
+  // change dimensions on every image change
   useEffect(() => {
-    const onImageBoundsChanged = () =>
-      setImageDims(getObjectFitSize(true, image));
-
-    window.addEventListener("resize", onImageBoundsChanged);
     onImageBoundsChanged();
-  }, [image, state.loaded]);
+  }, [ isLoaded, onImageBoundsChanged]);
 
   // update real scale of the image
   useEffect(() => {
     setAppState((prevAppState) => ({
       ...prevAppState,
+      htmlImageDims,
       realDims: calculateRealImageSize(
         scaleMeasurement,
         scaleLength,
-        imageDims
+        htmlImageDims
       ),
     }));
-  }, [scaleMeasurement, imageDims, scaleLength, setAppState]);
+  }, [scaleMeasurement, htmlImageDims, scaleLength, setAppState]);
+
+  const inferFiber: MouseEventHandler = async (event) => {
+    setAppState((prevState) => ({
+      ...prevState,
+      isChoosingTarget: false,
+    }));
+
+    const rect = event.currentTarget.getBoundingClientRect();
+
+    const x = (event.clientX - rect.left) / htmlImageDims.width;
+    const y = (event.clientY - rect.top) / htmlImageDims.height;
+    const color = randomColor();
+    console.log(x, y);
+
+    // add inference mark
+    const id = Math.max(0, ...pendingInferences.map((req) => req.id)) + 1;
+    console.log("MeasuredImage.tsx: new inference request, id: " + id);
+    setAppState((prevState) => {
+      prevState.pendingInferences.push({ x, y, color, id });
+      return {
+        ...prevState,
+        pendingInferences: [...prevState.pendingInferences],
+      };
+    });
+
+    try {
+      console.time("MeasuredImage.tsx: inference");
+      const res = await runAsync(imagePath, [x, y]);
+      console.log("MeasuredImage.tsx:" + res.toString());
+      const inferredFiber = JSON.parse(res.fiber);
+      if (inferredFiber.lines.length === 0) throw new Error("No fiber found there");
+      const measurements = inferredFiber.lines.map((line: any, id: number) => ({
+        ...line,
+        id,
+        type: "line",
+      }));
+      addFiber(measurements, color);
+    } catch (error: any) {
+      toast.warn(error.message.toString());
+    }
+    // remove inference mark
+    setAppState((prevState) => {
+      const popIndex = prevState.pendingInferences.findIndex(
+        (req) => req.id == id
+      );
+      prevState.pendingInferences.splice(popIndex, 1);
+      return {
+        ...prevState,
+        pendingInferences: [...prevState.pendingInferences],
+      };
+    });
+    console.timeEnd("inference");
+  };
 
   return (
-    <div className="relative">
+    <div className='relative'>
       <picture>
         <source srcSet={imagePath} type='image/webp' />
         <img
           src={imagePath}
           alt='fibers image'
-          ref={(e) => setImage(e!)}
+          ref={(e) => image.current = e!}
           onLoad={onImageLoaded}
           className='object-contain w-full h-[90vh] pointer-events-none'
         />
       </picture>
-      {state.loaded && (
+      {isLoaded && (
         <>
           {fibers.map((fiber, key) => (
             <FiberLayer
-              key={key}
+              key={fiber.id}
               fiberId={fiber.id}
               measurements={fiber.measurements}
               color={fiber.color}
-              imageDims={imageDims}
               onChange={(measurements) => onLayerChange(key, measurements)}
               measureLine={measureLine}
               measureCircle={measureCircle}
@@ -109,37 +183,26 @@ const MeasuredImage = (props: Props) => {
           <ScaleLayer
             measurement={scaleMeasurement}
             color={"#FAFAFA"}
-            imageDims={imageDims}
             onChange={(measurements) => setScaleMeasurement(measurements[0])}
             measureLine={(line) => "scale: " + measureLine(line)}
             measureCircle={measureCircle}
           />
+          {pendingInferences.map((props, key) => {
+            return <InferencePointer key={key} {...props} />;
+          })}
           <div
             className={`absolute object-contain opacity-10 ${
-              isChoosingTarget ? "bg-green-300 cursor-copy" : "pointer-events-none"
+              isChoosingTarget
+                ? "bg-green-300 cursor-wand"
+                : "pointer-events-none"
             }`}
             style={{
-              left: imageDims.x,
-              top: imageDims.y,
-              width: imageDims.width,
-              height: imageDims.height,
+              left: htmlImageDims.x,
+              top: htmlImageDims.y,
+              width: htmlImageDims.width,
+              height: htmlImageDims.height,
             }}
-            onClick={async (event) => {
-              setAppState((prevState) => ({...prevState, isChoosingTarget: false}));
-              
-              const rect = event.currentTarget.getBoundingClientRect();
-
-              const x = (event.clientX - rect.left) / imageDims.width;
-              const y = (event.clientY - rect.top) / imageDims.height;
-              console.log(x, y);
-
-              console.time('inference')
-              const res = await runAsync(imagePath, [x, y]);
-              const inferredFiber = JSON.parse(res.fiber);
-              const measurements = inferredFiber.lines.map((line: any, id: number) => ({...line, id, type: "line"}))
-              addFiber(measurements);
-              console.timeEnd('inference')
-            }}
+            onClick={inferFiber}
           />
         </>
       )}

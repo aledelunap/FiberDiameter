@@ -2,6 +2,32 @@
 
 <!--next-version-placeholder-->
 
+## v0.8.1 (2022-10-16)
+### Documentation
+* **UI:** Added info to landing page ([#40](https://github.com/fcossio/FiberDiameter/issues/40)) ([`7dd13bf`](https://github.com/fcossio/FiberDiameter/commit/7dd13bfc34deb4785c654ae61078d1f9a3f76af7))
+
+## v0.8.0 (2022-10-15)
+### Feature
+* **UI:** Favico is now the logo ([#38](https://github.com/fcossio/FiberDiameter/issues/38)) ([`92776d3`](https://github.com/fcossio/FiberDiameter/commit/92776d38d266ea2e791ee6352def020af269e0f1))
+
+## v0.7.2 (2022-10-13)
+
+
+## v0.7.1 (2022-10-13)
+### Fix
+* **UI:** Bugs on image switching ([#35](https://github.com/fcossio/FiberDiameter/issues/35)) ([`3acc3e5`](https://github.com/fcossio/FiberDiameter/commit/3acc3e56594bde0d683b65d5394dfa46f344bee0))
+
+## v0.7.0 (2022-10-13)
+### Feature
+* **UI:** Upload images ([#31](https://github.com/fcossio/FiberDiameter/issues/31)) ([`236a989`](https://github.com/fcossio/FiberDiameter/commit/236a9898d65ade69e7e6adfc66ed9c03407f2bcd))
+
+## v0.6.1 (2022-10-12)
+
+
+## v0.6.0 (2022-10-12)
+### Feature
+* **UI:** Improve inference flow with magic wand ([#28](https://github.com/fcossio/FiberDiameter/issues/28)) ([`964f8e3`](https://github.com/fcossio/FiberDiameter/commit/964f8e394989b143f7f2a709f2afb85dc4374dc0))
+
 ## v0.5.1 (2022-10-12)
 ### Fix
 * **UI:** Add correct id and color to fibers ([`4b97adb`](https://github.com/fcossio/FiberDiameter/commit/4b97adb4aa72da635004a9a65d19b4ee3e816356))

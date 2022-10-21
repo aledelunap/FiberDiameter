@@ -1,11 +1,7 @@
 import randomColor from "randomcolor";
 import { ChangeEvent, useContext, useState } from "react";
-import {
-  AiFillThunderbolt,
-  AiOutlinePlus,
-  AiOutlineThunderbolt,
-} from "react-icons/ai";
-import { runAsync } from "../worker/py-worker";
+import { AiOutlinePlus } from "react-icons/ai";
+import { IoMdColorWand } from "react-icons/io";
 import { AppContext } from "./App";
 import FiberItem from "./FiberItem";
 import Item from "./Item";
@@ -17,26 +13,22 @@ interface Props {
 }
 const SidePanel = (props: Props) => {
   const {
-    appState: { scaleLength, imagePath },
+    appState: { scaleLength, isChoosingTarget, imagePath },
     fibers,
     setFibers,
     addFiber,
     setAppState,
   } = useContext(AppContext)!;
-  
-  const [thunder, setThunder] = useState(<AiOutlineThunderbolt />);
 
   const chooseTarget = () => {
-    setAppState(prevAppState => ({ ...prevAppState, isChoosingTarget: !prevAppState.isChoosingTarget }))
-  }
-  
-  const runInference = async () => {
-    setThunder(<AiFillThunderbolt />);
-    let res = await runAsync(imagePath, [0.6, 0.24]);
-    console.log(res);
-    console.log(JSON.parse(res.fiber_meas));
-    setThunder(<AiOutlineThunderbolt />);
+    setShowIntro(false);
+    setAppState((prevAppState) => ({
+      ...prevAppState,
+      isChoosingTarget: !prevAppState.isChoosingTarget,
+    }));
   };
+
+  const [ showIntro, setShowIntro ] = useState(true)
 
   return (
     <div
@@ -47,27 +39,35 @@ const SidePanel = (props: Props) => {
         className='overflow-auto'
         id='fibers'
         title='Fibers'
-        actions={
+        actions={ imagePath !== '' &&
           <div>
+            {showIntro? <a className="primary">Click there ☞</a>:<></>}
             <button
               className='btn btn-xs btn-square btn-ghost'
+              title='Infer fiber'
               onClick={chooseTarget}
             >
-              {thunder}
+              <IoMdColorWand
+                className={isChoosingTarget ? "animate-bounce" : ""}
+              />
             </button>
             <button
               className='btn btn-xs btn-square btn-ghost'
+              title='New fiber'
               onClick={() =>
-                addFiber([
-                  {
-                    id: 0,
-                    type: "line",
-                    startX: 0.11,
-                    startY: 0.21,
-                    endX: 0.31,
-                    endY: 0.41,
-                  },
-                ])
+                addFiber(
+                  [
+                    {
+                      id: 0,
+                      type: "line",
+                      startX: 0.11,
+                      startY: 0.21,
+                      endX: 0.31,
+                      endY: 0.41,
+                    },
+                  ],
+                  randomColor()
+                )
               }
             >
               <AiOutlinePlus />
